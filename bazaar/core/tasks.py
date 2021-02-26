@@ -1,4 +1,5 @@
 import binascii
+import yara
 import gc
 import glob
 import logging
@@ -26,6 +27,7 @@ from google_play_scraper import app
 from quark.Objects.quark import Quark
 from quark.Objects.quarkrule import QuarkRule
 from tqdm import tqdm
+from bazaar.core.models import Yara
 
 from bazaar.core.fingerprinting import ApplicationSignature
 from bazaar.core.mobsf import MobSF
@@ -105,6 +107,44 @@ def extract_ioc(sha256):
     return {'status': 'success', 'info': ''}
 
 
+def yara_analysis(sha256):
+    with NamedTemporaryFile() as f:
+        f.write(default_storage.open(sha256).read())
+        f.seek(0)
+        with TemporaryDirectory() as tmp:
+            with zipfile.ZipFile(f.name, 'r') as apk:
+                apk.extractall(tmp)
+
+            for rule in Yara.objects.all():
+                # check if yara rule has an owner (public or not)
+                # check if the index exists, if not create it (yara_matches_username)
+                yara_rule = yara.compile(source=rule.content)
+
+                for file in glob.iglob(f'{tmp}/**/*', recursive=True):
+                    try:
+                        print('$$$$', file)
+                        res = yara_rule.match(file)
+                        # if public matches, add to public index
+                        # if private matches, add to private index
+                        print('####', res)
+                        # for each entry in ES, index it with the unique index of the yara rule
+                        # {
+                        # _id: "yara_rule.id"
+                        # matches: [
+                        #   {
+                        #     apk_id: "sha256",
+                        #     matching_files: [
+                        #       "file1",
+                        #       "file2",
+                        #       ...
+                        #     ]
+                        #   }
+                        # ]
+                        # }
+                    except:
+                        print('cannot run rule')
+
+
 def exodus_analysis(classes):
     start = time.time()
     exodus_url = "https://reports.exodus-privacy.eu.org/api/trackers"
@@ -169,7 +209,7 @@ def extract_classes(sha256):
                 if not class_name.startswith('Lkotlin/') and not class_name.startswith(
                     'Landroid/') and not class_name.startswith('Landroidx/') and not class_name.startswith(
                     'Ljavax/') and not class_name.startswith('Lkotlinx/') and not class_name.startswith(
-                    'Ljava/'): # and _lcheck(class_name) and class_name not in class_names:
+                    'Ljava/'):  # and _lcheck(class_name) and class_name not in class_names:
                     class_names.append(str(class_name))
         except Exception as e:
             es.update(index=settings.ELASTICSEARCH_TASKS_INDEX, id=sha256, body={'doc': {'extract_classes': -1}},
@@ -510,7 +550,7 @@ def malware_bazaar_analysis(sha256):
                 return
 
     es.update(index=settings.ELASTICSEARCH_TASKS_INDEX, id=sha256, body={'doc': {'malware_bazaar_analysis': -1}},
-                  retry_on_conflict=5)
+              retry_on_conflict=5)
     return
 
 
@@ -532,6 +572,7 @@ def vt_analysis(sha256):
         es.update(index=settings.ELASTICSEARCH_TASKS_INDEX, id=sha256, body={'doc': {'vt_analysis': -1}},
                   retry_on_conflict=5)
         return
+
 
 def analyze(sha256, force=False):
     if not default_storage.exists(sha256):
@@ -556,6 +597,7 @@ def analyze(sha256, force=False):
         async_task(extract_classes, sha256)
         async_task(quark_analysis, sha256)
         async_task(get_google_play_info, package)
+        # async_task(yara_analysis, sha256)
 
     gc.collect()
 
