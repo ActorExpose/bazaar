@@ -117,30 +117,63 @@ def yara_analysis(sha256):
 
             for rule in Yara.objects.all():
                 # check if yara rule has an owner (public or not)
-                # check if the index exists, if not create it (yara_matches_username)
-                yara_rule = yara.compile(source=rule.content)
+                # is_private = False
+                # if rule.owner is not None:
+                #     is_private = True
 
+                # check if the index exists, if not create it (yara_matches_username)
+
+                # if is_private:
+                #     index = 'yara_matches_private_' + rule.owner
+                # else:
+                #     index = 'yara_matches_public_' + rule.owner
+
+                # if not es.exists(index, id=rule.id):
+                #     es.index(index=index, id=rule.id, body=rule.content)
+
+                yara_rule = yara.compile(source=rule.content)
                 for file in glob.iglob(f'{tmp}/**/*', recursive=True):
                     try:
-                        print('$$$$', file)
-                        res = yara_rule.match(file)
-                        # if public matches, add to public index
-                        # if private matches, add to private index
-                        print('####', res)
-                        # for each entry in ES, index it with the unique index of the yara rule
-                        # {
-                        # _id: "yara_rule.id"
-                        # matches: [
-                        #   {
-                        #     apk_id: "sha256",
-                        #     matching_files: [
-                        #       "file1",
-                        #       "file2",
-                        #       ...
-                        #     ]
-                        #   }
-                        # ]
-                        # }
+                        res_struct = {
+                            "_id": rule.id,
+                            "name": rule.title,
+                            "matches": [
+                                {
+                                    "apk_id": sha256,
+                                    "matching_files": [],
+                                },
+                            ],
+                        }
+                        found = yara_rule.match(file)
+
+                        if len(found) > 0:
+                            for m in res_struct["matches"]:
+                                m["matching_files"].append(file)
+
+                            print(res_struct)
+
+                    #     # if public matches, add to public index
+                    #     if is_private is False:
+                    #         es.update(index=index, id=rule.id, body=res_struct)
+                    #     # if private matches, add to private index
+                    #     # for each entry in ES, index it with the unique index of the yara rule
+                    #     elif is_private is True:
+                    #         es.update(index=index, id=rule.id, body=res_struct)
+                    #     else:
+                    #         print("Error updating the index")
+                    # {
+                    # _id: "yara_rule.id"
+                    # matches: [
+                    #   {
+                    #     apk_id: "sha256",
+                    #     matching_files: [
+                    #       "file1",
+                    #       "file2",
+                    #       ...
+                    #     ]
+                    #   }
+                    # ]
+                    # }
                     except:
                         print('cannot run rule')
 
