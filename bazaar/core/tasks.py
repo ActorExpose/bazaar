@@ -131,6 +131,17 @@ def yara_analysis(sha256):
                 # if not es.exists(index, id=rule.id):
                 #     es.index(index=index, id=rule.id, body=rule.content)
 
+                is_private = False
+                if rule.owner is not None:
+                    is_private = True
+
+                # check if the index exists, if not create it (yara_matches_username)
+
+                es_index = 'yara_matches_private_' if is_private else 'yara_matches_public_'
+
+                if not es.exists(es_index, id=rule.id):
+                    es.indices.create(index=es_index, ignore=400)
+
                 yara_rule = yara.compile(source=rule.content)
                 for file in glob.iglob(f'{tmp}/**/*', recursive=True):
                     try:
@@ -150,7 +161,10 @@ def yara_analysis(sha256):
                             for m in res_struct["matches"]:
                                 m["matching_files"].append(file)
 
-                            print(res_struct)
+                            if not es.exists(es_index, id=rule.id):
+                                es.index(index=es_index, id=rule.id, body=res_struct)
+                            else:
+                                es.update(index=es_index, id=rule.id, body=res_struct, retry_on_conflict=5)
 
                     #     # if public matches, add to public index
                     #     if is_private is False:
