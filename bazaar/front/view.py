@@ -16,6 +16,7 @@ from bazaar.core.tasks import analyze
 from bazaar.core.utils import get_sha256_of_file
 from bazaar.front.forms import SearchForm, BasicUploadForm, SimilaritySearchForm
 from bazaar.front.utils import transform_results, get_similarity_matrix, compute_status, generate_world_map
+from bazaar.core.models import Yara
 
 
 @method_decorator(csrf_exempt, name='dispatch')
@@ -155,9 +156,11 @@ def download_sample_view(request, sha256):
         if not default_storage.exists(sha256):
             return redirect(reverse_lazy('front:home'))
 
-        response = HttpResponse(default_storage.open(sha256).read(), content_type="application/vnd.android.package-archive")
+        response = HttpResponse(default_storage.open(sha256).read(),
+                                content_type="application/vnd.android.package-archive")
         response['Content-Disposition'] = f'inline; filename=pithus_sample_{sha256}.apk'
         return response
+
 
 def export_report_view(request, sha256):
     if not request.user.is_authenticated:
@@ -174,3 +177,30 @@ def export_report_view(request, sha256):
             logging.exception(e)
             return redirect(reverse_lazy('front:home'))
 
+
+def my_rules_view(request):
+    if not request.user.is_authenticated:
+        return redirect(reverse_lazy('front:home'))
+
+    if request.method == 'GET':
+        es = Elasticsearch(settings.ELASTICSEARCH_HOSTS)
+        yara_rules = Yara.objects.filter(owner=request.user)
+        public_es_index, private_es_index = Yara.get_es_index_names(request.user)
+        q = {"query": {
+            "terms": {
+                "owner": [request.user.id]
+            }
+        }}
+
+        public_matches, private_matches = None, None
+        try:
+            private_matches = es.search(index=private_es_index, body=q)['hits']['hits']
+        except:
+            pass
+
+        try:
+            public_matches = es.search(index=public_es_index, body=q)['hits']['hits']
+        except:
+            pass
+
+        return render(request, 'front/yara_rules/my_rules.html', context={'my_rules': yara_rules, 'private_matches': private_matches, 'public_matches': public_matches})

@@ -1,7 +1,7 @@
 from django.urls import path
 
 from bazaar.front.view import HomeView, ReportView, basic_upload_view, similarity_search_view, export_report_view, \
-    download_sample_view
+    download_sample_view, my_rules_view
 
 app_name = "front"
 urlpatterns = [
@@ -11,4 +11,5 @@ urlpatterns = [
     path("apk/", view=basic_upload_view, name="basic_upload"),
     path("apk/<str:sha256>", view=download_sample_view, name="download_sample"),
     path("similar/", view=similarity_search_view, name="similarity_search"),
+    path("rules/", view=my_rules_view, name="my_rules")
 ]

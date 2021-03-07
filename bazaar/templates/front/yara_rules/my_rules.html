@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% load static %}
+{% load cache %}
+
+{% block content %}
+<div class="container">
+  <div class="row justify-content-center">
+    <div class="col text-center">
+      {% for rule in my_rules %}
+      {{ rule.title }} <br>
+      {% endfor %}
+      {% for match in private_matches %}
+      {{ match }}<br>
+      {% endfor %}
+      {% for match in public_matches %}
+      {{ match }}<br>
+      {% endfor %}
+    </div>
+  </div>
+
+</div>
+{% endblock %}

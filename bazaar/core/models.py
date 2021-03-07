@@ -11,6 +11,20 @@ class Yara(models.Model):
     last_update = models.DateTimeField()
     is_private = models.BooleanField(default=False)
 
+    @staticmethod
+    def get_es_index_names(user=None):
+        public_es_index = 'yara_matches_public'
+        private_es_index = None
+        if user:
+            private_es_index = f'yara_matches_private_{user.id}'
+        return public_es_index, private_es_index
+
+    def get_es_index_name(self):
+        public_es_index, private_es_index = Yara.get_es_index_names(self.owner)
+        if self.is_private:
+            return private_es_index
+        return public_es_index
+
 
 # makemigrations --> génère le modèle de la DB
 # migrate --> applique la modèle à la DB

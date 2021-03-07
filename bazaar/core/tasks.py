@@ -119,7 +119,7 @@ def yara_analysis(sha256):
                 apk.extractall(tmp)
 
             for rule in Yara.objects.all():
-                es_index = f'yara_matches_private_{rule.owner.id}' if rule.is_private else 'yara_matches_public'
+                es_index = rule.get_es_index_name()
 
                 try:
                     es.indices.create(index=es_index, ignore=400)
@@ -131,6 +131,7 @@ def yara_analysis(sha256):
                 res_struct = {
                     "name": rule.title,
                     "rule": rule.id,
+                    "owner": rule.owner.id,
                     "matches":
                         {
                             "apk_id": sha256,
