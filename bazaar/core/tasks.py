@@ -1,3 +1,5 @@
+import shutil
+import uuid
 import binascii
 import yara
 import gc
@@ -112,84 +114,48 @@ def yara_analysis(sha256):
         f.write(default_storage.open(sha256).read())
         f.seek(0)
         with TemporaryDirectory() as tmp:
+            shutil.copyfile(f.name, f'{tmp}/{sha256}.apk')
             with zipfile.ZipFile(f.name, 'r') as apk:
                 apk.extractall(tmp)
 
             for rule in Yara.objects.all():
-                # check if yara rule has an owner (public or not)
-                # is_private = False
-                # if rule.owner is not None:
-                #     is_private = True
+                es_index = f'yara_matches_private_{rule.owner.id}' if rule.is_private else 'yara_matches_public'
 
-                # check if the index exists, if not create it (yara_matches_username)
-
-                # if is_private:
-                #     index = 'yara_matches_private_' + rule.owner
-                # else:
-                #     index = 'yara_matches_public_' + rule.owner
-
-                # if not es.exists(index, id=rule.id):
-                #     es.index(index=index, id=rule.id, body=rule.content)
-
-                is_private = False
-                if rule.owner is not None:
-                    is_private = True
-
-                # check if the index exists, if not create it (yara_matches_username)
-
-                es_index = 'yara_matches_private_' if is_private else 'yara_matches_public_'
-
-                if not es.exists(es_index, id=rule.id):
+                try:
                     es.indices.create(index=es_index, ignore=400)
+                except:
+                    pass
 
                 yara_rule = yara.compile(source=rule.content)
+                document_uuid = uuid.uuid4()
+                res_struct = {
+                    "name": rule.title,
+                    "rule": rule.id,
+                    "matches":
+                        {
+                            "apk_id": sha256,
+                            "matching_files": [],
+                        },
+                }
                 for file in glob.iglob(f'{tmp}/**/*', recursive=True):
+                    # if not os.path.isfile(file):
+                    # continue
                     try:
-                        res_struct = {
-                            "_id": rule.id,
-                            "name": rule.title,
-                            "matches": [
-                                {
-                                    "apk_id": sha256,
-                                    "matching_files": [],
-                                },
-                            ],
-                        }
                         found = yara_rule.match(file)
 
                         if len(found) > 0:
-                            for m in res_struct["matches"]:
-                                m["matching_files"].append(file)
+                            print(found, file)
+                            res_struct["matches"]["matching_files"].append(file.replace(tmp, ''))
+                            print(res_struct)
+                    except Exception as e:
+                        print("#####", e)
 
-                            if not es.exists(es_index, id=rule.id):
-                                es.index(index=es_index, id=rule.id, body=res_struct)
-                            else:
-                                es.update(index=es_index, id=rule.id, body=res_struct, retry_on_conflict=5)
+                if len(res_struct["matches"]["matching_files"]) > 0:
+                    es.index(index=es_index, id=document_uuid, body=res_struct)
+                    # TODO: notify user if match
 
-                    #     # if public matches, add to public index
-                    #     if is_private is False:
-                    #         es.update(index=index, id=rule.id, body=res_struct)
-                    #     # if private matches, add to private index
-                    #     # for each entry in ES, index it with the unique index of the yara rule
-                    #     elif is_private is True:
-                    #         es.update(index=index, id=rule.id, body=res_struct)
-                    #     else:
-                    #         print("Error updating the index")
-                    # {
-                    # _id: "yara_rule.id"
-                    # matches: [
-                    #   {
-                    #     apk_id: "sha256",
-                    #     matching_files: [
-                    #       "file1",
-                    #       "file2",
-                    #       ...
-                    #     ]
-                    #   }
-                    # ]
-                    # }
-                    except:
-                        print('cannot run rule')
+    del rule, yara_rule, res_struct, file, found, es_index, document_uuid
+    return {'status': 'success', 'info': ''}
 
 
 def exodus_analysis(classes):
@@ -332,9 +298,11 @@ def frosting_analysis(sha256):
                             'content': binascii.b2a_base64(a._v2_blocks[b]).decode('utf-8').strip()
                         }
                     )
-            es.update(index=settings.ELASTICSEARCH_APK_INDEX, id=sha256, body={'doc': {'frosting_data': frosting_data}}, retry_on_conflict=5)
+            es.update(index=settings.ELASTICSEARCH_APK_INDEX, id=sha256, body={
+                      'doc': {'frosting_data': frosting_data}}, retry_on_conflict=5)
         except Exception as e:
             pass
+
 
 def ssdeep_analysis(sha256):
     es.update(index=settings.ELASTICSEARCH_TASKS_INDEX, id=sha256, body={'doc': {'ssdeep_analysis': 1}},
@@ -639,12 +607,11 @@ def analyze(sha256, force=False):
         async_task(vt_analysis, sha256)
         async_task(apkid_analysis, sha256)
         async_task(ssdeep_analysis, sha256)
-        # extract_classes(sha256)
         async_task(frosting_analysis, sha256)
         async_task(extract_classes, sha256)
         async_task(quark_analysis, sha256)
         async_task(get_google_play_info, package)
-        # async_task(yara_analysis, sha256)
+        async_task(yara_analysis, sha256)
 
     gc.collect()
 
