@@ -5,18 +5,66 @@
 {% block content %}
 <div class="container">
   <div class="row justify-content-center">
-    <div class="col text-center">
-      {% for rule in my_rules %}
-      {{ rule.title }} <br>
-      {% endfor %}
-      {% for match in private_matches %}
-      {{ match }}<br>
-      {% endfor %}
-      {% for match in public_matches %}
-      {{ match }}<br>
+    <div class="col-md-12 mt-2 mb-3">
+
+      <div class="row">
+        <h2>My rules </h2>
+        <button class="btn btn-sm">Add a new rule</button>
+      </div>
+      <table class=" table table-condensed table-sm">
+        {% for rule in my_rules %}
+        <tr class="table-primary">
+          <td>
+            {% if rule.rule.is_private %}
+            <i class="fas fa-lock text-muted"></i>
+            {% else %}
+            <i class="fas fa-lock-open text-muted"></i>
+            {% endif %}
+            <samp>{{ rule.rule.title }} </samp>
+
+            <i data-toggle="modal" data-target="#ruleModal" class="fa fa-eye"></i>
+            <!-- Modal -->
+            <div class="modal fade" id="ruleModal" tabindex="-1" role="dialog" aria-labelledby="ruleModalLabel">
+              <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                  <div class="modal-header">
+                    <div class="modal-title">{{ rule.rule.title }}
+                      <i class="fa fa-pen"></i>
+                      <i class="fas fa-trash"></i>
+                    </div>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span
+                        aria-hidden="true">&times;</span></button>
+                  </div>
+                  <div class="modal-body">
+                    <pre>{{ rule.rule.content }}</pre>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+
+          </td>
+          <td class=""></td>
+        </tr>
+        {% for m in rule.matches %}
+        <tr>
+          <td>
+            <a href="{% url 'front:report' m.matches.apk_id %}">
+              {{ m.matches.apk_id|truncatechars:25 }}</a>
+          </td>
+          <td>
+            <ul class="list-unstyled small">
+              {% for f in m.matches.matching_files %}
+              <li><samp>{{ f }}</samp></li>
+              {% endfor %}
+            </ul>
+          </td>
+        </tr>
+        {% endfor %}
+      </table>
+
       {% endfor %}
     </div>
   </div>
-
 </div>
 {% endblock %}

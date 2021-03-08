@@ -203,4 +203,21 @@ def my_rules_view(request):
         except:
             pass
 
-        return render(request, 'front/yara_rules/my_rules.html', context={'my_rules': yara_rules, 'private_matches': private_matches, 'public_matches': public_matches})
+        my_rules = []
+        for rule in yara_rules:
+            my_rule = {
+                'rule': rule,
+                'matches': [],
+            }
+            if rule.is_private and private_matches:
+                for match in private_matches:
+                    if match['_source']['rule'] == str(rule.id):
+                        my_rule['matches'].append(match['_source'])
+            elif not rule.is_private and public_matches:
+                for match in public_matches:
+                    if match['_source']['rule'] == str(rule.id):
+                        my_rule['matches'].append(match['_source'])
+
+            my_rules.append(my_rule)
+
+        return render(request, 'front/yara_rules/my_rules.html', context={'my_rules': my_rules})
