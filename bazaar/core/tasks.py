@@ -139,8 +139,6 @@ def yara_analysis(sha256):
                         },
                 }
                 for file in glob.iglob(f'{tmp}/**/*', recursive=True):
-                    # if not os.path.isfile(file):
-                    # continue
                     try:
                         found = yara_rule.match(file)
 
@@ -149,13 +147,14 @@ def yara_analysis(sha256):
                             res_struct["matches"]["matching_files"].append(file.replace(tmp, ''))
                             print(res_struct)
                     except Exception as e:
-                        print("#####", e)
+                        pass
 
                 if len(res_struct["matches"]["matching_files"]) > 0:
                     es.index(index=es_index, id=document_uuid, body=res_struct)
                     # TODO: notify user if match
 
     del rule, yara_rule, res_struct, file, found, es_index, document_uuid
+    gc.collect()
     return {'status': 'success', 'info': ''}
 
 
