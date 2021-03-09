@@ -1,0 +1,15 @@
+{% block content %}
+<div class="align-items-start">
+    Add a new rule:
+    <form method="POST" enctype="multipart/form-data">
+        {% csrf_token %}
+        {% for field in form %}
+        <div class="col">
+            <label for="">{{field.name}}: </label>
+            <div>{{field}}</div>
+        </div>
+        {% endfor %}
+        <button type='submit'>Sumbit</button>
+    </form>
+</div>
+{% endblock %}

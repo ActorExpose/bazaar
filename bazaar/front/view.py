@@ -17,6 +17,9 @@ from bazaar.core.utils import get_sha256_of_file
 from bazaar.front.forms import SearchForm, BasicUploadForm, SimilaritySearchForm
 from bazaar.front.utils import transform_results, get_similarity_matrix, compute_status, generate_world_map
 from bazaar.core.models import Yara
+from .forms import YaraCreate
+
+from datetime import datetime
 
 
 @method_decorator(csrf_exempt, name='dispatch')
@@ -182,6 +185,7 @@ def my_rules_view(request):
     if not request.user.is_authenticated:
         return redirect(reverse_lazy('front:home'))
 
+    upload = YaraCreate()
     if request.method == 'GET':
         es = Elasticsearch(settings.ELASTICSEARCH_HOSTS)
         yara_rules = Yara.objects.filter(owner=request.user)
@@ -217,7 +221,17 @@ def my_rules_view(request):
                 for match in public_matches:
                     if match['_source']['rule'] == str(rule.id):
                         my_rule['matches'].append(match['_source'])
-
             my_rules.append(my_rule)
+    elif request.method == 'POST':
+        new_rule = YaraCreate(request.POST)
+        print("######", request.POST)
+        new_rule = new_rule.save(commit=False)
+        new_rule.owner = request.user
+        new_rule.last_update = datetime.now()
+        try:
+            new_rule.save()
+            return redirect('/rules')
+        except:
+            return HttpResponse('there has been an issue with the form')
 
-        return render(request, 'front/yara_rules/my_rules.html', context={'my_rules': my_rules})
+    return render(request, 'front/yara_rules/my_rules.html', context={'my_rules': my_rules, 'form': upload})
