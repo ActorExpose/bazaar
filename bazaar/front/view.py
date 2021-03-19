@@ -6,7 +6,7 @@ from django.contrib import messages
 from django.core.cache import cache
 from django.core.files.storage import default_storage
 from django.http import JsonResponse, HttpResponse
-from django.http.response import HttpResponseBadRequest
+from django.http.response import HttpResponseBadRequest, HttpResponseRedirectBase
 from django.shortcuts import render, redirect
 from django.utils import timezone
 from django.utils.decorators import method_decorator
@@ -186,46 +186,12 @@ def my_rules_view(request):
         return redirect(reverse_lazy('front:home'))
 
     if request.method == 'GET':
-        es = Elasticsearch(settings.ELASTICSEARCH_HOSTS)
-        yara_rules = Yara.objects.filter(owner=request.user)
-        public_es_index, private_es_index = Yara.get_es_index_names(request.user)
-        q = {"query": {
-            "terms": {
-                "owner": [request.user.id]
-            }
-        }}
-
-        public_matches, private_matches = None, None
-        try:
-            private_matches = es.search(index=private_es_index, body=q)['hits']['hits']
-        except:
-            pass
-
-        try:
-            public_matches = es.search(index=public_es_index, body=q)['hits']['hits']
-        except:
-            pass
-
-        my_rules = []
-        for rule in yara_rules:
-            my_rule = {
-                'rule': rule,
-                'matches': [],
-            }
-            if rule.is_private and private_matches:
-                for match in private_matches:
-                    if match['_source']['rule'] == str(rule.id):
-                        my_rule['matches'].append(match['_source'])
-            elif not rule.is_private and public_matches:
-                for match in public_matches:
-                    if match['_source']['rule'] == str(rule.id):
-                        my_rule['matches'].append(match['_source'])
-            my_rules.append(my_rule)
+        my_rules = get_rules(request)
 
     return render(request, 'front/yara_rules/my_rules.html', context={'my_rules': my_rules})
 
 
-def my_rule_create(request):
+def my_rule_create_view(request):
     if not request.user.is_authenticated:
         return redirect(reverse_lazy('front:home'))
 
@@ -238,14 +204,15 @@ def my_rule_create(request):
         new_rule.last_update = timezone.now()
         try:
             new_rule.save()
-            return render(request, 'front/yara_rules/my_rules.html')
+            my_rules = get_rules(request)
+            return render(request, 'front/yara_rules/my_rules.html', context={'my_rules': my_rules})
         except:
             return HttpResponse("error saving the form")
 
     return render(request, 'front/yara_rules/my_rule_create.html', {"form": new_rule})
 
 
-def my_rule_edit(request, uuid=None):
+def my_rule_edit_view(request, uuid=None):
     if not request.user.is_authenticated:
         return redirect(reverse_lazy('front:home'))
 
@@ -260,10 +227,66 @@ def my_rule_edit(request, uuid=None):
         new_rule.last_update = timezone.now()
         try:
             new_rule.save()
-            return render(request, 'front/yara_rules/my_rules.html')
+            my_rules = get_rules(request)
+            return redirect(request, 'front/yara_rules/my_rules.html', context={'my_rules': my_rules})
         except:
             return HttpResponse("error saving the form")
     else:
         HttpResponseBadRequest()
 
     return render(request, 'front/yara_rules/my_rule_edit.html', {"form": new_rule})
+
+
+def my_rule_delete_view(request, uuid=None):
+    if not request.user.is_authenticated:
+        return redirect(reverse_lazy('front:home'))
+
+    if request.method == 'GET':
+        rule = Yara.objects.get(id=uuid)
+        try:
+            rule.delete()
+            return redirect('front:rules')
+        except:
+            return HttpResponseBadRequest()
+
+    return redirect('front:rules')
+
+
+def get_rules(request):
+    es = Elasticsearch(settings.ELASTICSEARCH_HOSTS)
+    yara_rules = Yara.objects.filter(owner=request.user)
+    public_es_index, private_es_index = Yara.get_es_index_names(request.user)
+    q = {"query": {
+        "terms": {
+            "owner": [request.user.id]
+        }
+    }}
+
+    public_matches, private_matches = None, None
+    try:
+        private_matches = es.search(index=private_es_index, body=q)['hits']['hits']
+    except:
+        pass
+
+    try:
+        public_matches = es.search(index=public_es_index, body=q)['hits']['hits']
+    except:
+        pass
+
+    my_rules = []
+    for rule in yara_rules:
+        my_rule = {
+            'rule': rule,
+            'matches': [],
+        }
+        if rule.is_private and private_matches:
+            for match in private_matches:
+                if match['_source']['rule'] == str(rule.id):
+                    my_rule['matches'].append(match['_source'])
+        elif not rule.is_private and public_matches:
+            for match in public_matches:
+                if match['_source']['rule'] == str(rule.id):
+                    my_rule['matches'].append(match['_source'])
+        my_rules.append(my_rule)
+
+    return my_rules

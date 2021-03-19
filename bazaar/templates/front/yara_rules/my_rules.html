@@ -37,8 +37,8 @@
                 <div class="modal-content">
                   <div class="modal-header">
                     <div class="modal-title" id="title">{{ rule.rule.title }}
-                      <i class="fa fa-pen"></i>
-                      <i class="fas fa-trash"></i>
+                      <a href="/rules/{{rule.rule.id}}/edit"><i class="fa fa-pen"></i></a>
+                      <a href="/rules/{{rule.rule.id}}/delete"><i class="fas fa-trash"></i></a>
                     </div>
                     <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span
                         aria-hidden="true">&times;</span></button>
