@@ -10,23 +10,29 @@
       <div class="row">
         <h2>My rules </h2>
       </div>
-      <div>
-        {% include "front/yara_rules/upload_form.html" %}
-      </div>
-      <table class=" table table-condensed table-sm">
+      <h3><a href="/rules/new">Add a new rule</a></h3>
+      <div class="accordion" id="accordionExample">
         {% for rule in my_rules %}
-        <tr class="table-primary">
-          <td>
-            {% if rule.rule.is_private %}
-            <i class="fas fa-lock text-muted"></i>
-            {% else %}
-            <i class="fas fa-lock-open text-muted"></i>
-            {% endif %}
-            <samp>{{ rule.rule.title }} </samp>
+        <div class="card">
+          <div class="card-header" id="heading-{{rule.rule.id}}">
+            <h2 class="mb-0">
+              <button class="btn btn-link btn-block text-left" type="button" data-toggle="collapse"
+                data-target="#collapse-{{rule.rule.id}}" aria-expanded="true" aria-controls="collapse-{{rule.rule.id}}">
+                <span class="badge badge-light">{{ rule.matches|length }}</span>
+                {{rule.rule.title}}
 
-            <i data-toggle="modal" data-target="#ruleModal" class="fa fa-eye" data-yrule="{{ rule.rule }}"></i>
+
+                <i data-toggle="modal" data-target="#ruleModal-{{rule.rule.id}}" class="fa fa-eye"></i>
+                {% if rule.rule.is_private %}
+                <i class="fas fa-lock text-muted"></i>
+                {% else %}
+                <i class="fas fa-lock-open text-muted"></i>
+                {% endif %}
+              </button>
+            </h2>
             <!-- Modal -->
-            <div class=" modal fade" id="ruleModal" tabindex="-1" role="dialog" aria-labelledby="ruleModalLabel">
+            <div class=" modal fade" id="ruleModal-{{rule.rule.id}}" tabindex="-1" role="dialog"
+              aria-labelledby="ruleModalLabel">
               <div class="modal-dialog" role="document">
                 <div class="modal-content">
                   <div class="modal-header">
@@ -43,30 +49,30 @@
                 </div>
               </div>
             </div>
+          </div>
 
+          <div id="collapse-{{rule.rule.id}}" class="collapse " aria-labelledby="heading-{{rule.rule.id}}"
+            data-parent="#accordionExample">
+            <div class="card-body">
+              {% for m in rule.matches %}
 
-          </td>
-          <td class=""></td>
-        </tr>
-        {% for m in rule.matches %}
-        <tr>
-          <td>
-            <a href="{% url 'front:report' m.matches.apk_id %}">
-              {{ m.matches.apk_id|truncatechars:25 }}</a>
-          </td>
-          <td>
-            <ul class="list-unstyled small">
-              {% for f in m.matches.matching_files %}
-              <li><samp>{{ f }}</samp></li>
+              <a href="{% url 'front:report' m.matches.apk_id %}">
+                {{ m.matches.apk_id|truncatechars:25 }}</a>
+              <ul class="list-unstyled small">
+                {% for f in m.matches.matching_files %}
+                <li><samp>{{ f }}</samp></li>
+                {% endfor %}
+              </ul>
               {% endfor %}
-            </ul>
-          </td>
-        </tr>
+            </div>
+          </div>
+        </div>
         {% endfor %}
-        {% endfor %}
-      </table>
-
+      </div>
     </div>
   </div>
 </div>
+
+
+
 {% endblock %}

@@ -6,7 +6,9 @@ from django.contrib import messages
 from django.core.cache import cache
 from django.core.files.storage import default_storage
 from django.http import JsonResponse, HttpResponse
+from django.http.response import HttpResponseBadRequest
 from django.shortcuts import render, redirect
+from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import View
@@ -18,8 +20,6 @@ from bazaar.front.forms import SearchForm, BasicUploadForm, SimilaritySearchForm
 from bazaar.front.utils import transform_results, get_similarity_matrix, compute_status, generate_world_map
 from bazaar.core.models import Yara
 from .forms import YaraCreate
-
-from datetime import datetime
 
 
 @method_decorator(csrf_exempt, name='dispatch')
@@ -185,7 +185,6 @@ def my_rules_view(request):
     if not request.user.is_authenticated:
         return redirect(reverse_lazy('front:home'))
 
-    upload = YaraCreate()
     if request.method == 'GET':
         es = Elasticsearch(settings.ELASTICSEARCH_HOSTS)
         yara_rules = Yara.objects.filter(owner=request.user)
@@ -222,16 +221,49 @@ def my_rules_view(request):
                     if match['_source']['rule'] == str(rule.id):
                         my_rule['matches'].append(match['_source'])
             my_rules.append(my_rule)
-    elif request.method == 'POST':
+
+    return render(request, 'front/yara_rules/my_rules.html', context={'my_rules': my_rules})
+
+
+def my_rule_create(request):
+    if not request.user.is_authenticated:
+        return redirect(reverse_lazy('front:home'))
+
+    new_rule = YaraCreate()
+
+    if request.method == 'POST':
         new_rule = YaraCreate(request.POST)
-        print("######", request.POST)
         new_rule = new_rule.save(commit=False)
         new_rule.owner = request.user
-        new_rule.last_update = datetime.now()
+        new_rule.last_update = timezone.now()
         try:
             new_rule.save()
-            return redirect('/rules')
+            return render(request, 'front/yara_rules/my_rules.html')
         except:
-            return HttpResponse('there has been an issue with the form')
+            return HttpResponse("error saving the form")
 
-    return render(request, 'front/yara_rules/my_rules.html', context={'my_rules': my_rules, 'form': upload})
+    return render(request, 'front/yara_rules/my_rule_create.html', {"form": new_rule})
+
+
+def my_rule_edit(request, uuid=None):
+    if not request.user.is_authenticated:
+        return redirect(reverse_lazy('front:home'))
+
+    if request.method == 'GET':
+        rule = Yara.objects.get(id=uuid)
+        new_rule = YaraCreate(instance=rule)
+    elif request.method == 'POST':
+        rule = Yara.objects.get(id=uuid)
+        new_rule = YaraCreate(request.POST or None, instance=rule)
+        new_rule = new_rule.save(commit=False)
+        new_rule.owner = request.user
+        new_rule.last_update = timezone.now()
+        try:
+            new_rule.save()
+            return render(request, 'front/yara_rules/my_rules.html')
+        except:
+            return HttpResponse("error saving the form")
+    else:
+        HttpResponseBadRequest()
+
+    return render(request, 'front/yara_rules/my_rule_edit.html', {"form": new_rule})
